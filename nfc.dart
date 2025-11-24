@@ -1,4 +1,3 @@
-import 'dart:typed_data';  
 import 'package:flutter/material.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 // import 'package:ndef/ndef.dart' as ndef; 
@@ -40,8 +39,14 @@ List<int> uidByte(String uid) {
   }
 
   // 4) ISO15693 vuole l’UID in ordine invertito
-  return bytes.reversed.toList();
+  return bytes.reversed.toList(); //bytes.reversed.toList()
 }
+
+String bytesToHex(List<int> bytes) {
+  return bytes
+      .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
+      .join(' ');
+  }
 
 
 @override
@@ -55,6 +60,7 @@ List<int> uidByte(String uid) {
 
   Widget messaggioLoad = const SizedBox.shrink();
   String txtButton = 'Scansiona';
+  String messaggioerrore = '';
 
  
  Future<void> annullaFct() async{
@@ -81,16 +87,12 @@ List<int> uidByte(String uid) {
 
       //const idFake = '02189078665102E0';
 //--
-    final uidReversed = uidByte(datiNfc.id); //uidByte(datiNfc.id);
+    final uidReversed = uidByte(datiNfc.id);
    if (uidReversed.length != 8) {
       throw Exception('\n UID non è di 8 byte, trovato: ${uidReversed.length}');
     }
 
-  String bytesToHex(List<int> bytes) {
-  return bytes
-      .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
-      .join(' ');
-  }
+  
 
     // 3) costruisco il frame ISO15693: READ SINGLE BLOCK
     //
@@ -101,9 +103,9 @@ List<int> uidByte(String uid) {
    const int blockNumber = 0x05; ///
 
    final Uint8List frame = Uint8List.fromList([
-      0x20,          // Flags
+      0x22,          // Flags
       0x20,          // Command code: Read Single Block
-      ...uidReversed, // UID in ordine LSB → MSB
+      0xE0, 0x02, 0x51, 0x66, 0x78, 0x90, 0x18, 0x02, // UID in ordine LSB → MSB
       blockNumber,   // Block address
     ]);
 
@@ -153,7 +155,7 @@ List<int> uidByte(String uid) {
         {
           'check': 'Tag rilevato',
           'type': 'Type: ${datiNfc.type}',
-          'ID': 'ID: ${datiNfc.id}',
+          'ID': 'ID: ${datiNfc.id} codificato final uidReversed = uidByte(datiNfc.id);',
           'Standard': 'Standard: ${datiNfc.standard}',
           'ATQA': 'ATQA: ${datiNfc.atqa}',
           'SAK': 'SAK: ${datiNfc.sak}',
@@ -166,10 +168,6 @@ List<int> uidByte(String uid) {
 
       ];
 
-
-    
-    
-    
 
       setState(() {
         messaggioLoad = const SizedBox.shrink();
@@ -184,14 +182,30 @@ List<int> uidByte(String uid) {
       await FlutterNfcKit.finish();
 
     } catch (e) {
+
+        final datiNfc = await FlutterNfcKit.poll();
+        final uidReversed = bytesToHex(uidByte(datiNfc.id));
+        List<Map<String,String>> summary = [
+        {
+          'check': 'Errore nella lettura NFC:\n"$e"',
+          'type': 'Type: ${datiNfc.type}',
+          'ID': 'ID: ${datiNfc.id} codificato $uidReversed}',
+          'Standard': 'Standard: ${datiNfc.standard}',
+          'ATQA': 'ATQA: ${datiNfc.atqa}',
+          'SAK': 'SAK: ${datiNfc.sak}',
+          'Historical_bytes': 'Historical_bytes ${datiNfc.historicalBytes}',
+          'protocollo': 'Protocollo: ${datiNfc.protocolInfo}',
+          'App_data': 'App data: ${datiNfc.applicationData}',
+          'hash_code': 'Hash code:${datiNfc.hashCode}',
+          
+      }
+
+      ];
+
       setState(() {
+        _summaryData = summary;
         messaggioLoad = const SizedBox.shrink();
         txtButton = 'Reset';
-        _summaryData = [
-          {
-            'check': 'Errore nella lettura NFC:\n"$e"',
-          },
-        ];
       });
       await FlutterNfcKit.finish();
     } 
@@ -236,6 +250,7 @@ List<int> uidByte(String uid) {
                                                     //Text((data['App_data'] as String)),
                                                     //Text((data['hash_code'] as String)),
                                                     Text('${data['data_hex']}'),
+                                                    Text(messaggioerrore),
                                                   ],
                                                 ),
                                             )
@@ -256,6 +271,9 @@ List<int> uidByte(String uid) {
               Text(txtButton)),
           ]),
     );
+  }
+
+}
   }
 
 }
